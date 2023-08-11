@@ -12,7 +12,8 @@ type AuthorizationPolicy struct {
 	Namespace string
 }
 
-func (ap *AuthorizationPolicy) GetNSAuthPolicy() (unstructured.Unstructured, error) {
+// GetIngressPolicy returns an AuthorizationPolicy for the ingress gateway
+func (ap *AuthorizationPolicy) GetNSPolicy() unstructured.Unstructured {
 	policy := unstructured.Unstructured{}
 	policy.SetAPIVersion("networking.istio.io/v1alpha3")
 	policy.SetKind("AuthorizationPolicy")
@@ -20,7 +21,20 @@ func (ap *AuthorizationPolicy) GetNSAuthPolicy() (unstructured.Unstructured, err
 	policy.SetNamespace(ap.Namespace)
 
 	// Create the AuthorizationPolicy spec
-	authPolicySpec := map[string]interface{}{
+	policy.Object = map[string]interface{}{
+		"spec": map[string]interface{}{},
+	}
+	return policy
+}
+
+// GetNsPolicy returns an AuthorizationPolicy that allows all traffic within the namespace and from the ingress gateway
+func (ap *AuthorizationPolicy) GetNsIngressPolicy() unstructured.Unstructured {
+	policy := unstructured.Unstructured{}
+	policy.SetAPIVersion("networking.istio.io/v1alpha3")
+	policy.SetKind("AuthorizationPolicy")
+	policy.SetName(ap.Name)
+	policy.SetNamespace(ap.Namespace)
+	policy.SetUnstructuredContent(map[string]interface{}{
 		"selector": map[string]interface{}{
 			"matchLabels": map[string]interface{}{
 				"istio": "ingressgateway",
@@ -38,27 +52,26 @@ func (ap *AuthorizationPolicy) GetNSAuthPolicy() (unstructured.Unstructured, err
 				},
 			},
 		},
-	}
+	})
 
-	policy.Object = map[string]interface{}{
-		"spec": authPolicySpec,
-	}
-
-	return policy, nil
+	return policy
 }
 
 func main() {
-	authorizationPolicy := AuthorizationPolicy{
-		Name:      "allow-ingress-namespace",
-		Namespace: "your-namespace",
+	ap := AuthorizationPolicy{
+		Name:      "allow-nothing",
+		Namespace: "default",
 	}
 
-	// print out full policy
-	policy, _ := authorizationPolicy.GetNSAuthPolicy()
+	authorizationPolicy := ap.GetNSPolicy()
 
-	// print out policy spec
-	jsonPolicy, _ := json.Marshal(policy.Object["spec"])
-	fmt.Println(string(jsonPolicy))
+	// Convert to JSON for printing
+	data, err := json.MarshalIndent(authorizationPolicy, "", "  ")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 
-	fmt.Println(policy)
+	fmt.Println(string(data))
+
 }
